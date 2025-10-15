@@ -1,42 +1,22 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Brain, TrendingUp, AlertTriangle, CheckCircle, FileText, Download } from 'lucide-react';
-import { Line, Bar } from 'react-chartjs-2';
-import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  BarController,
-  Title,
-  Tooltip,
-  Legend,
-  Filler,
-} from 'chart.js';
-
-// Register Chart.js components
-ChartJS.register(
-  CategoryScale,
-  LinearScale,
-  PointElement,
-  LineElement,
-  BarElement,
-  BarController,
-  Title,
-  Tooltip,
-  Legend,
-  Filler
-);
+import { D3LineChart } from '@/components/charts/D3LineChart';
+import { D3BarChart } from '@/components/charts/D3BarChart';
+import { usePatientStore } from '@/store/patientStore';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export const AnalysisTEAView: React.FC = () => {
+  const { patients } = usePatientStore();
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+
   // Mock analysis data
   const analysisResults = [
     {
+      patientId: '1',
       patient: 'Lucas Martínez',
       date: '2024-01-15',
       score: 85,
@@ -50,6 +30,7 @@ export const AnalysisTEAView: React.FC = () => {
       recommendations: 3
     },
     {
+      patientId: '2',
       patient: 'Sofia González',
       date: '2024-01-14',
       score: 72,
@@ -64,6 +45,10 @@ export const AnalysisTEAView: React.FC = () => {
     }
   ];
 
+  const filteredAnalysisResults = analysisResults.filter(
+    result => !selectedPatientId || result.patientId === selectedPatientId
+  );
+
   const progressData = {
     labels: ['Sem 1', 'Sem 2', 'Sem 3', 'Sem 4', 'Sem 5', 'Sem 6'],
     datasets: [
@@ -72,21 +57,18 @@ export const AnalysisTEAView: React.FC = () => {
         data: [65, 70, 75, 78, 82, 85],
         borderColor: 'rgb(59, 130, 246)',
         backgroundColor: 'rgba(59, 130, 246, 0.1)',
-        tension: 0.4,
       },
       {
         label: 'Social',
         data: [60, 65, 68, 72, 75, 78],
         borderColor: 'rgb(16, 185, 129)',
         backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        tension: 0.4,
       },
       {
         label: 'Conductual',
         data: [70, 72, 75, 78, 80, 82],
         borderColor: 'rgb(245, 158, 11)',
         backgroundColor: 'rgba(245, 158, 11, 0.1)',
-        tension: 0.4,
       }
     ]
   };
@@ -105,22 +87,6 @@ export const AnalysisTEAView: React.FC = () => {
         backgroundColor: 'rgba(16, 185, 129, 0.8)',
       }
     ]
-  };
-
-  const chartOptions = {
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        position: 'top' as const,
-      },
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        max: 100,
-      },
-    },
   };
 
   return (
@@ -144,9 +110,29 @@ export const AnalysisTEAView: React.FC = () => {
         </div>
       </div>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Filtro por Paciente</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Select onValueChange={setSelectedPatientId} value={selectedPatientId || ''}>
+            <SelectTrigger className="w-[280px]">
+              <SelectValue placeholder="Seleccionar un paciente" />
+            </SelectTrigger>
+            <SelectContent>
+              {patients.map(patient => (
+                <SelectItem key={patient.id} value={patient.id}>
+                  {patient.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
       {/* Analysis Results */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {analysisResults.map((result, index) => (
+        {filteredAnalysisResults.map((result, index) => (
           <motion.div
             key={result.patient}
             initial={{ opacity: 0, scale: 0.95 }}
@@ -223,11 +209,8 @@ export const AnalysisTEAView: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
-              <Line 
-                data={progressData} 
-                options={chartOptions}
-              />
+            <div className="h-64 flex justify-center items-center">
+              <D3LineChart data={progressData} />
             </div>
           </CardContent>
         </Card>
@@ -243,11 +226,8 @@ export const AnalysisTEAView: React.FC = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
-              <Bar 
-                data={comparisonData} 
-                options={chartOptions}
-              />
+            <div className="h-64 flex justify-center items-center">
+              <D3BarChart data={comparisonData} />
             </div>
           </CardContent>
         </Card>

@@ -1,37 +1,38 @@
 import React, { useRef, useEffect } from 'react';
 import * as d3 from 'd3';
+import useResizeObserver from '../../hooks/useResizeObserver';
 
 interface DataPoint {
-  label: string;
-  value: number;
-  color?: string;
+  x: number | string;
+  y: number;
 }
 
-interface BarChartProps {
+interface LineChartProps {
   data: DataPoint[];
-  width?: number;
-  height?: number;
+  color?: string;
   showGrid?: boolean;
   xLabel?: string;
   yLabel?: string;
 }
 
-export const BarChart: React.FC<BarChartProps> = ({
+export const LineChart: React.FC<LineChartProps> = ({
   data,
-  width = 400,
-  height = 200,
+  color = '#3B82F6',
   showGrid = true,
   xLabel,
   yLabel
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const dimensions = useResizeObserver(wrapperRef);
 
   useEffect(() => {
-    if (!svgRef.current || !data.length) return;
+    if (!svgRef.current || !data.length || !dimensions) return;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
+    const { width, height } = dimensions;
     const margin = { top: 20, right: 30, bottom: 40, left: 50 };
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
@@ -43,13 +44,12 @@ export const BarChart: React.FC<BarChartProps> = ({
       .attr('transform', `translate(${margin.left},${margin.top})`);
 
     // Scales
-    const xScale = d3.scaleBand()
-      .domain(data.map(d => d.label))
-      .range([0, innerWidth])
-      .padding(0.1);
+    const xScale = d3.scaleLinear()
+      .domain(d3.extent(data, d => typeof d.x === 'string' ? parseFloat(d.x) : d.x) as [number, number])
+      .range([0, innerWidth]);
 
     const yScale = d3.scaleLinear()
-      .domain([0, d3.max(data, d => d.value) as number])
+      .domain([0, d3.max(data, d => d.y) as number])
       .nice()
       .range([innerHeight, 0]);
 
@@ -61,30 +61,46 @@ export const BarChart: React.FC<BarChartProps> = ({
         .call(d3.axisLeft(yScale)
           .tickSize(-innerWidth)
           .tickFormat(() => ''));
+
+      g.append('g')
+        .attr('class', 'grid')
+        .attr('transform', `translate(0,${innerHeight})`)
+        .attr('opacity', 0.1)
+        .call(d3.axisBottom(xScale)
+          .tickSize(-innerHeight)
+          .tickFormat(() => ''));
     }
 
-    // Bars
-    g.selectAll('.bar')
-      .data(data)
-      .enter()
-      .append('rect')
-      .attr('class', 'bar')
-      .attr('x', d => xScale(d.label) || 0)
-      .attr('y', d => yScale(d.value))
-      .attr('width', xScale.bandwidth())
-      .attr('height', d => innerHeight - yScale(d.value))
-      .attr('fill', d => d.color || '#3B82F6')
-      .attr('rx', 4);
+    // Line
+    const line = d3.line<DataPoint>()
+      .x(d => xScale(typeof d.x === 'string' ? parseFloat(d.x) : d.x))
+      .y(d => yScale(d.y))
+      .curve(d3.curveMonotoneX);
+
+    g.append('path')
+      .datum(data)
+      .attr('fill', 'none')
+      .attr('stroke', color)
+      .attr('stroke-width', 2)
+      .attr('d', line);
+
+    // Area fill
+    const area = d3.area<DataPoint>()
+      .x(d => xScale(typeof d.x === 'string' ? parseFloat(d.x) : d.x))
+      .y0(innerHeight)
+      .y1(d => yScale(d.y))
+      .curve(d3.curveMonotoneX);
+
+    g.append('path')
+      .datum(data)
+      .attr('fill', color)
+      .attr('fill-opacity', 0.1)
+      .attr('d', area);
 
     // Axes
     g.append('g')
       .attr('transform', `translate(0,${innerHeight})`)
-      .call(d3.axisBottom(xScale))
-      .selectAll('text')
-      .attr('transform', 'rotate(-45)')
-      .attr('text-anchor', 'end')
-      .attr('dx', '-0.5em')
-      .attr('dy', '0.5em');
+      .call(d3.axisBottom(xScale).ticks(5));
 
     g.append('g')
       .call(d3.axisLeft(yScale).ticks(5));
@@ -111,10 +127,10 @@ export const BarChart: React.FC<BarChartProps> = ({
         .text(yLabel);
     }
 
-  }, [data, width, height, showGrid, xLabel, yLabel]);
+  }, [data, dimensions, color, showGrid, xLabel, yLabel]);
 
   return (
-    <div className="bar-chart">
+    <div ref={wrapperRef} style={{ width: '100%', height: '100%' }} className="line-chart">
       <svg ref={svgRef}></svg>
     </div>
   );

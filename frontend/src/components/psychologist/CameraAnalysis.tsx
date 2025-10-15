@@ -9,32 +9,37 @@ interface MicroExpression {
   emotion: string;
   confidence: number;
   timestamp: Date;
-  duration: number;
 }
 
 export const CameraAnalysis: React.FC = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationFrameId = useRef<number>();
   const [isRecording, setIsRecording] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [socket, setSocket] = useState<WebSocket | null>(null);
   const [expressions, setExpressions] = useState<MicroExpression[]>([]);
   const [currentEmotion, setCurrentEmotion] = useState<string>('neutral');
 
-  // Simulated micro-expression detection (OpenCV integration would go here)
-  const detectMicroExpressions = () => {
-    const emotions = ['joy', 'sadness', 'anger', 'surprise', 'fear', 'disgust', 'neutral'];
-    const randomEmotion = emotions[Math.floor(Math.random() * emotions.length)];
-    const confidence = 0.7 + Math.random() * 0.3;
-    
-    const newExpression: MicroExpression = {
-      emotion: randomEmotion,
-      confidence,
-      timestamp: new Date(),
-      duration: 1000 + Math.random() * 3000
-    };
+  const sendFrame = () => {
+    if (!videoRef.current || !canvasRef.current || !socket || socket.readyState !== WebSocket.OPEN) {
+      return;
+    }
 
-    setCurrentEmotion(randomEmotion);
-    setExpressions(prev => [...prev.slice(-9), newExpression]);
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    if (context) {
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (blob && socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(blob);
+        }
+      }, 'image/jpeg');
+    }
+    animationFrameId.current = requestAnimationFrame(sendFrame);
   };
 
   const startCamera = async () => {
@@ -43,7 +48,7 @@ export const CameraAnalysis: React.FC = () => {
         video: { 
           width: { ideal: 640 },
           height: { ideal: 480 },
-          frameRate: { ideal: 30 }
+          frameRate: { ideal: 15 } // Lower frame rate for performance
         }
       });
       
@@ -54,46 +59,72 @@ export const CameraAnalysis: React.FC = () => {
       setStream(mediaStream);
       setIsRecording(true);
       
-      // Start micro-expression analysis simulation
-      const interval = setInterval(detectMicroExpressions, 2000);
-      (window as any).expressionInterval = interval;
+      const ws = new WebSocket('ws://127.0.0.1:8000/ws/analyze');
       
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        setSocket(ws);
+        animationFrameId.current = requestAnimationFrame(sendFrame);
+      };
+
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.detections && data.detections.length > 0) {
+          const mainDetection = data.detections[0];
+          const newExpression: MicroExpression = {
+            emotion: mainDetection.emotion,
+            confidence: Math.max(...mainDetection.scores),
+            timestamp: new Date(),
+          };
+          setCurrentEmotion(mainDetection.emotion);
+          setExpressions(prev => [...prev.slice(-9), newExpression]);
+        } else {
+          setCurrentEmotion('neutral');
+        }
+      };
+
+      ws.onclose = () => {
+        console.log('WebSocket disconnected');
+        setSocket(null);
+      };
+
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        setSocket(null);
+      };
+
     } catch (error) {
       console.error('Error accessing camera:', error);
     }
   };
 
   const stopCamera = () => {
+    if (animationFrameId.current) {
+      cancelAnimationFrame(animationFrameId.current);
+    }
+    if (socket) {
+      socket.close();
+    }
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       setStream(null);
     }
-    
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
-    
     setIsRecording(false);
     setCurrentEmotion('neutral');
-    
-    if ((window as any).expressionInterval) {
-      clearInterval((window as any).expressionInterval);
-    }
   };
 
   useEffect(() => {
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
-      if ((window as any).expressionInterval) {
-        clearInterval((window as any).expressionInterval);
-      }
+      stopCamera();
     };
-  }, [stream]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const getEmotionColor = (emotion: string) => {
-    const colors = {
+    const colors: { [key: string]: string } = {
       joy: 'text-yellow-600 bg-yellow-100',
       sadness: 'text-blue-600 bg-blue-100',
       anger: 'text-red-600 bg-red-100',
@@ -102,7 +133,7 @@ export const CameraAnalysis: React.FC = () => {
       disgust: 'text-green-600 bg-green-100',
       neutral: 'text-gray-600 bg-gray-100'
     };
-    return colors[emotion as keyof typeof colors] || colors.neutral;
+    return colors[emotion] || colors.neutral;
   };
 
   return (
@@ -130,7 +161,7 @@ export const CameraAnalysis: React.FC = () => {
               />
               <canvas
                 ref={canvasRef}
-                className="absolute top-0 left-0 w-full h-full pointer-events-none"
+                className="hidden" // Canvas is used for processing, not display
               />
             </div>
             

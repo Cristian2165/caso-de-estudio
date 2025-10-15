@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import * as d3 from 'd3';
+import useResizeObserver from '../../hooks/useResizeObserver';
 
 interface DataPoint {
   x: number;
@@ -9,8 +10,6 @@ interface DataPoint {
 
 interface ScatterChartProps {
   data: DataPoint[];
-  width?: number;
-  height?: number;
   color?: string;
   showGrid?: boolean;
   xLabel?: string;
@@ -21,8 +20,6 @@ interface ScatterChartProps {
 
 export const ScatterChart: React.FC<ScatterChartProps> = ({
   data,
-  width = 400,
-  height = 200,
   color = '#8B5CF6',
   showGrid = true,
   xLabel,
@@ -31,13 +28,16 @@ export const ScatterChart: React.FC<ScatterChartProps> = ({
   yDomain
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const dimensions = useResizeObserver(wrapperRef);
 
   useEffect(() => {
-    if (!svgRef.current || !data.length) return;
+    if (!svgRef.current || !data.length || !dimensions) return;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
+    const { width, height } = dimensions;
     const margin = { top: 20, right: 30, bottom: 40, left: 50 };
     const innerWidth = width - margin.left - margin.right;
     const innerHeight = height - margin.top - margin.bottom;
@@ -121,10 +121,10 @@ export const ScatterChart: React.FC<ScatterChartProps> = ({
         .text(yLabel);
     }
 
-  }, [data, width, height, color, showGrid, xLabel, yLabel, xDomain, yDomain]);
+  }, [data, dimensions, color, showGrid, xLabel, yLabel, xDomain, yDomain]);
 
   return (
-    <div className="scatter-chart">
+    <div ref={wrapperRef} style={{ width: '100%', height: '100%' }} className="scatter-chart">
       <svg ref={svgRef}></svg>
     </div>
   );

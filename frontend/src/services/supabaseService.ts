@@ -107,6 +107,34 @@ export class SupabaseService {
     return profile as User | null;
   }
 
+  static async getPatientsForPsychologist(psychologistId: string): Promise<Patient[]> {
+    const { data, error } = await supabase
+      .from('children')
+      .select(`
+        *,
+        user:users(*)
+      `)
+      .eq('assigned_psychologist', psychologistId);
+
+    if (error) throw error;
+
+    return (data || []).map(item => ({
+      id: item.user.id,
+      name: item.user.name,
+      email: item.user.email,
+      role: 'patient',
+      age: item.age,
+      diagnosis: item.diagnosis,
+      parentEmail: item.parent_email,
+      assignedPsychologist: item.assigned_psychologist,
+      currentEmotion: item.current_emotion,
+      avatar: item.user.avatar,
+      preferences: item.preferences,
+      createdAt: new Date(item.user.created_at),
+      updatedAt: new Date(item.user.updated_at),
+    } as Patient));
+  }
+
   // Biometric data methods
   static async saveBiometricReading(childId: string, data: BiometricData) {
     const { error } = await supabase

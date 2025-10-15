@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import * as d3 from 'd3';
+import useResizeObserver from '../../hooks/useResizeObserver';
 
 interface DataPoint {
   label: string;
@@ -9,8 +10,6 @@ interface DataPoint {
 
 interface DoughnutChartProps {
   data: DataPoint[];
-  width?: number;
-  height?: number;
   innerRadius?: number;
   showLabels?: boolean;
   showLegend?: boolean;
@@ -18,20 +17,21 @@ interface DoughnutChartProps {
 
 export const DoughnutChart: React.FC<DoughnutChartProps> = ({
   data,
-  width = 300,
-  height = 300,
   innerRadius = 60,
   showLabels = true,
   showLegend = true
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const dimensions = useResizeObserver(wrapperRef);
 
   useEffect(() => {
-    if (!svgRef.current || !data.length) return;
+    if (!svgRef.current || !data.length || !dimensions) return;
 
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
+    const { width, height } = dimensions;
     const radius = Math.min(width, height) / 2;
     const g = svg
       .attr('width', width)
@@ -99,10 +99,10 @@ export const DoughnutChart: React.FC<DoughnutChartProps> = ({
         .text(d => d.label);
     }
 
-  }, [data, width, height, innerRadius, showLabels, showLegend]);
+  }, [data, dimensions, innerRadius, showLabels, showLegend]);
 
   return (
-    <div className="doughnut-chart">
+    <div ref={wrapperRef} style={{ width: '100%', height: '100%' }} className="doughnut-chart">
       <svg ref={svgRef}></svg>
     </div>
   );

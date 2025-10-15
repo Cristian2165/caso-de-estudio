@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/store/authStore';
 import { useBiometricStore } from '@/store/biometricStore';
+import { usePatientStore } from '@/store/patientStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -24,10 +25,9 @@ import {
 import { Psychologist } from '@/types';
 import { ActiveBreaksSystem } from './ActiveBreaksSystem';
 
-
-
 export const PsychologistDashboard: React.FC = () => {
   const { user } = useAuthStore();
+  const { patients } = usePatientStore();
   const { 
     realTimeData, 
     historicalData, 
@@ -44,13 +44,6 @@ export const PsychologistDashboard: React.FC = () => {
     generateMockData();
   }, [generateMockData]);
 
-  // Mock patients data
-  const activePatients = [
-    { name: 'Lucas', age: 7, status: 'active', emotion: 'joy', heartRate: 85, stress: 'low' },
-    { name: 'Sofia', age: 9, status: 'session', emotion: 'sadness', heartRate: 92, stress: 'medium' },
-    { name: 'Diego', age: 6, status: 'break', emotion: 'calm', heartRate: 78, stress: 'low' }
-  ];
-
   // Chart data for heart rate trends
   const heartRateData = historicalData.slice(-20).map((d, index) => ({
     x: index + 1,
@@ -65,8 +58,6 @@ export const PsychologistDashboard: React.FC = () => {
     { label: 'Ansiedad', value: 15, color: '#8B5CF6' },
     { label: 'Enojo', value: 10, color: '#EF4444' }
   ];
-
-
 
   return (
     <div className="space-y-6">
@@ -122,7 +113,7 @@ export const PsychologistDashboard: React.FC = () => {
               <Users className="h-4 w-4 text-blue-600" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{psychologist.assignedChildren.length}</div>
+              <div className="text-2xl font-bold">{patients.length}</div>
               <p className="text-xs text-green-600 flex items-center mt-1">
                 <TrendingUp className="w-3 h-3 mr-1" />
                 +2 este mes
@@ -215,8 +206,6 @@ export const PsychologistDashboard: React.FC = () => {
                 {historicalData.length > 0 ? (
                   <LineChart
                     data={heartRateData}
-                    width={400}
-                    height={250}
                     color="#EF4444"
                     xLabel="Tiempo (min)"
                     yLabel="BPM"
@@ -268,10 +257,10 @@ export const PsychologistDashboard: React.FC = () => {
                 Pacientes en Sesión
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {activePatients.map((patient, index) => (
+            <CardContent className="space-y-4 max-h-96 overflow-y-auto">
+              {patients.map((patient, index) => (
                 <motion.div
-                  key={patient.name}
+                  key={patient.id}
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
@@ -317,8 +306,6 @@ export const PsychologistDashboard: React.FC = () => {
             <div className="h-64 flex items-center justify-center">
               <DoughnutChart
                 data={emotionData}
-                width={300}
-                height={300}
                 showLegend={true}
               />
             </div>
