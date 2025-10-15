@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { useAuthStore } from '@/store/authStore';
-import { usePatientStore, MockPatient } from '@/store/patientStore';
+import { usePatientStore, NewPatientData } from '@/store/patientStore';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,86 +10,39 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Users, Heart, Brain, Activity, Plus, Search, Calendar, Clock, User } from 'lucide-react';
-import { Psychologist, Patient } from '@/types';
+import { Users, Heart, Brain, Activity, Plus, Search, User, Loader2 } from 'lucide-react';
+import { Patient } from '@/types';
 import { PatientDetail } from './PatientDetail';
 
 export const PatientsView: React.FC = () => {
-  const { user } = useAuthStore();
-  const { patients, addPatient } = usePatientStore();
-  const psychologist = user as Psychologist;
-  const [selectedPatient, setSelectedPatient] = useState<MockPatient | null>(null);
+  const { patients, fetchPatients, addPatient, loading } = usePatientStore();
+  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [showNewPatientForm, setShowNewPatientForm] = useState(false);
-  const [newPatientData, setNewPatientData] = useState<Partial<MockPatient & {parentEmail: string, notes: string}>>({});
-  const [registeredPatient, setRegisteredPatient] = useState<Patient | null>(null);
-  const [showSessionGames, setShowSessionGames] = useState(false);
+  const [newPatientData, setNewPatientData] = useState<Partial<NewPatientData>>({});
+  const [error, setError] = useState<string | null>(null);
 
-  const handleRegisterPatient = () => {
-    const newMockPatient: MockPatient = {
-      id: `patient-${Date.now()}`,
-      name: newPatientData.name || '',
-      age: newPatientData.age || 0,
-      diagnosis: newPatientData.diagnosis || [],
-      lastSession: '',
-      progress: 0,
-      status: 'active',
-      emotions: [],
-      heartRate: 80
-    };
+  // Cargar los pacientes reales del backend cuando el componente se monta
+  useEffect(() => {
+    fetchPatients();
+  }, [fetchPatients]);
 
-    addPatient(newMockPatient);
+  const handleRegisterPatient = async () => {
+    setError(null); // Limpiar errores previos
+    // Validación simple
+    if (!newPatientData.name || !newPatientData.email || !newPatientData.password || !newPatientData.age || !newPatientData.parentEmail) {
+      setError('Por favor, complete todos los campos requeridos.');
+      return;
+    }
 
-    const newPatient: Patient = {
-      id: newMockPatient.id,
-      name: newMockPatient.name,
-      email: newPatientData.parentEmail || '',
-      role: 'patient',
-      age: newMockPatient.age,
-      diagnosis: newMockPatient.diagnosis,
-      parentEmail: newPatientData.parentEmail || '',
-      assignedPsychologist: psychologist.id,
-      currentEmotion: 'neutral',
-      avatar: '/avatars/default-child.jpg',
-      preferences: {
-        favoriteColors: [],
-        preferredActivities: [],
-        sensitivity: {
-          sound: 'medium',
-          light: 'medium',
-          touch: 'medium'
-        },
-        avatarCustomization: {
-          skinTone: 'medium',
-          hairColor: 'brown',
-          eyeColor: 'brown',
-          clothing: 'casual',
-          accessories: []
-        }
-      },
-      biometricData: {
-        heartRate: 80,
-        stressLevel: 'low',
-        skinTemperature: 36.5,
-        activity: 'resting',
-        timestamp: new Date()
-      },
-      createdAt: new Date(),
-      updatedAt: new Date()
-    };
+    const success = await addPatient(newPatientData as NewPatientData);
 
-    setRegisteredPatient(newPatient);
-    setShowNewPatientForm(false);
-    setNewPatientData({});
+    if (success) {
+      setShowNewPatientForm(false);
+      setNewPatientData({});
+    } else {
+      setError('Hubo un error al registrar el paciente. Verifique el email e intente de nuevo.');
+    }
   };
-
-  const games = [
-    { id: '1', name: 'Juego de Colores', description: 'Identifica y combina colores para mejorar la concentración', suitableEmotions: ['joy', 'calm'] },
-    { id: '2', name: 'Rompecabezas Emocional', description: 'Arma rompecabezas que representan diferentes emociones', suitableEmotions: ['anxiety', 'sadness'] },
-    { id: '3', name: 'Aventura Sonora', description: 'Explora sonidos y ritmos para estimular los sentidos', suitableEmotions: ['joy', 'calm'] },
-    { id: '4', name: 'Laberinto Calmante', description: 'Navega laberintos relajantes para reducir la ansiedad', suitableEmotions: ['anxiety', 'sadness'] },
-    { id: '5', name: 'Dibujo Libre', description: 'Expresa emociones a través del dibujo creativo', suitableEmotions: ['joy', 'anxiety', 'sadness', 'calm'] },
-    { id: '6', name: 'Juego de Memoria', description: 'Mejora la memoria con tarjetas de emociones', suitableEmotions: ['calm'] }
-  ];
 
   if (selectedPatient) {
     return (
@@ -121,98 +74,15 @@ export const PatientsView: React.FC = () => {
         </div>
       </div>
 
-      {registeredPatient && (
-        <Card className="psych-card">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-blue-600" />
-              Sesiones de {registeredPatient.name}
-            </CardTitle>
-            <CardDescription>
-              Gestión de sesiones terapéuticas
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="p-4 border rounded-lg">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-medium">Sesión 1 - Evaluación Inicial</h3>
-                    <p className="text-sm text-gray-600">15 Enero 2024 • 10:00 AM</p>
-                  </div>
-                  <Badge variant="secondary">Completada</Badge>
-                </div>
-                <p className="text-sm mt-2">Evaluación inicial del paciente, identificación de fortalezas y áreas de mejora.</p>
-              </div>
-              <div className="p-4 border rounded-lg">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-medium">Sesión 2 - Terapia Conductual</h3>
-                    <p className="text-sm text-gray-600">22 Enero 2024 • 10:00 AM</p>
-                  </div>
-                  <Badge variant="outline">Programada</Badge>
-                </div>
-                <p className="text-sm mt-2">Trabajo en habilidades sociales y regulación emocional.</p>
-              </div>
-              <Button onClick={() => setShowSessionGames(true)}>
-                <Plus className="w-4 h-4 mr-2" />
-                Nueva Sesión
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {showSessionGames && registeredPatient && (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Juegos Terapéuticos para {registeredPatient.name}</h1>
-              <p className="text-gray-600 mt-1">
-                Juegos adaptados según la emoción actual: {registeredPatient.currentEmotion}
-              </p>
-            </div>
-            <Button onClick={() => setShowSessionGames(false)}>
-              Volver a Sesiones
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {games.filter(g => g.suitableEmotions.includes(registeredPatient.currentEmotion)).map(game => (
-              <motion.div
-                key={game.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3 }}
-              >
-                <Card className="psych-card hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Brain className="w-5 h-5 text-purple-600" />
-                      {game.name}
-                    </CardTitle>
-                    <CardDescription>{game.description}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <Button className="w-full" onClick={() => alert(`Iniciando ${game.name}...`)}>
-                      Jugar Ahora
-                    </Button>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {showNewPatientForm && (
         <Card className="psych-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="w-5 h-5 text-green-600" />
-              Registrar Nuevo Paciente
+              Registrar y Asignar Nuevo Paciente
             </CardTitle>
             <CardDescription>
-              Complete la información del nuevo paciente
+              Complete la información para crear y asignar un nuevo paciente a su perfil.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -236,6 +106,28 @@ export const PatientsView: React.FC = () => {
                   placeholder="7"
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <Label htmlFor="email">Email del Paciente (para login)</Label>
+                    <Input
+                    id="email"
+                    type="email"
+                    value={newPatientData.email || ''}
+                    onChange={(e) => setNewPatientData({...newPatientData, email: e.target.value})}
+                    placeholder="lucas.martinez@email.com"
+                    />
+                </div>
+                <div>
+                    <Label htmlFor="password">Contraseña Temporal</Label>
+                    <Input
+                    id="password"
+                    type="password"
+                    value={newPatientData.password || ''}
+                    onChange={(e) => setNewPatientData({...newPatientData, password: e.target.value})}
+                    placeholder="••••••••"
+                    />
+                </div>
             </div>
             <div>
               <Label htmlFor="diagnosis">Diagnóstico</Label>
@@ -261,18 +153,13 @@ export const PatientsView: React.FC = () => {
                 placeholder="padre@email.com"
               />
             </div>
-            <div>
-              <Label htmlFor="notes">Notas adicionales</Label>
-              <Textarea
-                id="notes"
-                value={newPatientData.notes || ''}
-                onChange={(e) => setNewPatientData({...newPatientData, notes: e.target.value})}
-                placeholder="Información adicional relevante..."
-              />
-            </div>
+            
+            {error && <p className="text-sm font-medium text-red-500">{error}</p>}
+
             <div className="flex space-x-2">
-              <Button onClick={handleRegisterPatient}>
-                Registrar Paciente
+              <Button onClick={handleRegisterPatient} disabled={loading}>
+                {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="w-4 h-4 mr-2"/>}
+                {loading ? 'Registrando...' : 'Registrar y Asignar'}
               </Button>
               <Button variant="outline" onClick={() => setShowNewPatientForm(false)}>
                 Cancelar
@@ -283,68 +170,64 @@ export const PatientsView: React.FC = () => {
       )}
 
       <Accordion type="single" collapsible className="w-full">
-        {patients.map((patient) => (
-          <AccordionItem value={`item-${patient.id}`} key={patient.id}>
-            <AccordionTrigger>
-              <div className="flex justify-between items-center w-full pr-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                    <User className="w-6 h-6 text-gray-500" />
+        {loading && patients.length === 0 ? (
+            <div className="flex justify-center items-center p-8">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                <p className='ml-4 text-gray-600'>Cargando pacientes...</p>
+            </div>
+        ) : patients.length === 0 ? (
+            <div className="text-center p-8">
+                <p className="text-gray-600">No tienes pacientes asignados.</p>
+                <p className="text-sm text-gray-500 mt-2">Usa el botón "Nuevo Paciente" para registrar y asignar uno.</p>
+            </div>
+        ) : (
+          patients.map((patient) => (
+            <AccordionItem value={`item-${patient.id}`} key={patient.id}>
+              <AccordionTrigger>
+                <div className="flex justify-between items-center w-full pr-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
+                      <User className="w-6 h-6 text-gray-500" />
+                    </div>
+                    <div>
+                      <p className="font-semibold">{patient.name}</p>
+                      <p className="text-sm text-gray-500">{patient.age} años • {patient.diagnosis.join(', ')}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-semibold">{patient.name}</p>
-                    <p className="text-sm text-gray-500">{patient.age} años • {patient.diagnosis.join(', ')}</p>
-                  </div>
-                </div>
-                <Badge
-                  variant={
-                    patient.status === 'active' ? 'default' :
-                    patient.status === 'session' ? 'secondary' : 'outline'
-                  }
-                >
-                  {patient.status}
-                </Badge>
-              </div>
-            </AccordionTrigger>
-            <AccordionContent>
-              <div className="space-y-4 pt-2 pb-4 px-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">Progreso</span>
-                  <span className="text-sm font-medium">{patient.progress}%</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${patient.progress}%` }}
-                  />
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center space-x-1">
-                    <Heart className="w-4 h-4 text-red-500" />
-                    <span>{patient.heartRate} BPM</span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Brain className="w-4 h-4 text-purple-500" />
-                    <span>{patient.emotions.length} emociones</span>
-                  </div>
-                </div>
-                <div className="flex space-x-2 pt-2">
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => setSelectedPatient(patient)}
+                  {/* La data de 'status', 'progress', etc. no viene del backend aún, se puede añadir luego */}
+                  {/* <Badge
+                    variant={
+                      patient.status === 'active' ? 'default' :
+                      patient.status === 'session' ? 'secondary' : 'outline'
+                    }
                   >
-                    <Activity className="w-4 h-4 mr-1" />
-                    Ver Detalles
-                  </Button>
-                  <Button size="sm" variant="outline">
-                    <Users className="w-4 h-4" />
-                  </Button>
+                    {patient.status}
+                  </Badge> */}
                 </div>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        ))}
+              </AccordionTrigger>
+              <AccordionContent>
+                <div className="space-y-4 pt-2 pb-4 px-4">
+                  <div className="flex items-center justify-between text-sm">
+                     <p>Email del Padre/Madre: {patient.parentEmail}</p>
+                  </div>
+                  <div className="flex space-x-2 pt-2">
+                    <Button
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => setSelectedPatient(patient)}
+                    >
+                      <Activity className="w-4 h-4 mr-1" />
+                      Ver Detalles
+                    </Button>
+                    <Button size="sm" variant="outline">
+                      <Users className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          ))
+        )}
       </Accordion>
     </div>
   );

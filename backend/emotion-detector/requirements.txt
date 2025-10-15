@@ -4,3 +4,8 @@ opencv-python-headless
 numpy
 hsemotion
 facenet-pytorch
+supabase
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+python-dotenv
